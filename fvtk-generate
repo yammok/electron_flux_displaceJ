@@ -1,0 +1,148 @@
+#!/usr/bin/perl -w
+
+# === Package
+use strict; 
+use File::Basename; 
+
+# === Subroutine
+sub usage()
+{
+   my $exename = basename(__FILE__); 
+   my $errmsg  = <<'EOF'; 
+Usage : $exename [option] [output file]
+Option: 
+	-d: one electron density file
+	-f  one electron flux density file
+EOF
+
+   print "$errmsg";
+}
+
+sub genVTK()
+{
+   my ($opt,$fout) = @_; 
+   my $fext; 
+   my $name;
+
+   if    ($opt eq "-d") { $fext="\.d"; }
+   elsif ($opt eq "-f") { $fext="\.f"; }
+   $name=basename($fout,$fext); 
+
+   open(JFILE, "< $fout") or die("Failure opening the file: $fout"); 
+   for (my $i = 0; not eof JFILE; $i++) { &writeGeomVTK($opt,$i,$name); }
+   close(JFILE);
+
+   open(JFILE, "< $fout") or die("Failure opening the file: $fout"); 
+   for (my $i = 0; not eof JFILE; $i++) { &writeVecVTK($opt,$i,$name); }
+   close(JFILE);
+}
+
+sub writeGeomVTK()
+{
+   my ($opt,$i,$name) = @_; 
+   my $vfile; 
+   my $type; 
+
+   if    ($opt eq "-d") { $type="d"; }
+   elsif ($opt eq "-f") { $type="f"; }
+   $vfile = sprintf("%s_%s%04d.vtk", $name,$type,$i); 
+
+   open(VTK, "> $vfile") or die("Failure openning the file: $vfile"); 
+
+   print VTK "# vtk DataFile Version 2.0\n"; 
+   print VTK "electron current calculation results\n"; 
+   print VTK "ASCII\n"; 
+   print VTK "DATASET STRUCTURED_GRID\n";
+   print VTK "DIMENSIONS px py pz\n";
+   print VTK "POINTS ptot double\n";
+
+   while (my $line = <JFILE>) {
+      my @str = split(/\s+/, &trim($line)); 
+      my $i   = 1; 
+
+      if ($line =~ /^\n/) { last; }
+      foreach my $s (@str) {
+         if    ($i <  3) { printf(VTK "%17.10lf " , $s); }
+ 	 elsif ($i == 3) { printf(VTK "%17.10lf\n", $s); }
+ 	 else            { last; }
+	 $i++; 	
+      }
+   }
+   close(VTK);
+}
+
+sub writeVecVTK()
+{
+   my ($opt,$i,$name) = @_; 
+   my $vfile; 
+   my $type;
+
+   if    ($opt eq "-d") { $type="d"; }
+   elsif ($opt eq "-f") { $type="f"; }
+   $vfile = sprintf("%s_%s%04d.vtk", $name,$type,$i); 
+
+   open(VTK, ">> $vfile") or die("Failure openning the file: $vfile"); 
+
+   print VTK "POINT_DATA ptot\n"; 
+   if    ($opt eq "-f") { print VTK "VECTORS V double\n"; }
+   elsif ($opt eq "-d") { 
+      print VTK "SCALARS V double\n"; 
+      print VTK "LOOKUP_TABLE default\n"; 
+   } 
+
+   while (my $line = <JFILE>) {
+      my @str = split(/\s+/, &trim($line)); 
+      my $i   = 1; 
+
+      if ($line =~ /^\n/) { last; }
+      foreach my $s (@str) {
+         if ($opt eq "-f") { 
+            if ($i >  3) { printf(VTK "%17.10lf " , $s); }
+         }
+         elsif ($opt eq "-d") { 
+            if ($i == 4) { printf(VTK "%17.10lf " , $s); }
+	 }
+         $i++; 	
+      }
+      print VTK "\n";
+   }
+
+   close(VTK);
+}
+
+sub trim()
+{
+   my $val = shift;
+
+   $val =~ s/^\s*(.*?)\s*$/$1/;
+
+   return $val; 
+}
+
+sub parseParam()
+{
+   my ($opt,$fout)=@_; 
+
+   if    ($opt eq "-d" && $fout =~ /\.d$/) { return ; }
+   elsif ($opt eq "-f" && $fout =~ /\.f$/) { return ; }
+   else {
+      &usage(); 
+      exit(0); 
+   }
+}
+
+# === Main
+my $NARGS=1; 
+my $opt =$ARGV[0]; 
+my $fout=$ARGV[1]; 
+
+if ($#ARGV != $NARGS) { 
+   &usage(); 
+   exit(0); 
+}
+else { 
+   &parseParam($opt,$fout); 
+   &genVTK($opt,$fout); 
+}
+
+__END__

@@ -1,0 +1,3 @@
+#define EHAR 4.35974417
+#define PLANK 1.05457168
+

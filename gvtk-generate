@@ -1,0 +1,67 @@
+#!/usr/bin/perl -w
+
+# === Package
+use strict; 
+use File::Basename; 
+
+# === Subroutine
+sub usage()
+{
+	my $exename = basename(__FILE__); 
+
+	print "Usage: $exename [geom file] [Number of atom]\n"; 
+}
+
+sub genGeomVTKs()
+{
+	my ($fgeom, $nat) = @_; 
+	my $name = basename($fgeom, '.geom'); 
+
+	open(GEOM , "< $fgeom") or die("Failure opening the file: $fgeom"); 
+	for (my $i = 0; ; $i++) {
+		my $vfile = sprintf("%s_geom%04d.vtk", $name, $i); 
+
+		if (eof GEOM) { last; }
+		open(FVTK, "> $vfile")
+			or die("Failure opening the file: $fgeom"); 
+
+		print FVTK "# vtk DataFile Version 2.0\n"; 
+		print FVTK "test\n"; 
+		print FVTK "ASCII\n"; 
+		print FVTK "DATASET POLYDATA\n"; 
+		print FVTK "POINTS $nat double\n"; 
+
+		for (my $j = 0; $j < 2; $j++) {
+			my $line = <GEOM>; 
+
+			print FVTK $line; 			
+		}
+		print FVTK "POINT_DATA $nat\n"; 
+		print FVTK "SCALARS temp double\n"; 
+		print FVTK "LOOKUP_TABLE default\n"; 
+		print FVTK "1 1\n"; 
+		close(FVTK); 
+	}
+	
+#	while (my $line = <GEOM>) {
+#	}
+
+	close(GEOM); 
+}
+
+# === Main
+my $fgeom; 
+my $nat; 
+
+if ($#ARGV != 1) {
+	&usage();
+	exit(0); 
+}
+else {
+	$fgeom = $ARGV[0]; 
+	$nat   = $ARGV[1]; 
+}
+
+&genGeomVTKs($fgeom, $nat); 
+
+__END__

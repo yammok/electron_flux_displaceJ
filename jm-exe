@@ -1,0 +1,127 @@
+#!/bin/bash
+
+# === Parameter 
+exts="cur mo cpmx dsmx geom vel"
+CCMD="flux-exe"
+GFVTK="fvtk-generate"
+GGVTK="gvtk-generate"
+
+# === Function
+usage()
+{
+   local cmd=`basename $1`
+
+   cat <<EOT
+Usage: $cmd [option] [cur file]
+Option: 
+	-d: one electron density calculation
+	-f: one electron flux density calculation
+EOT
+}
+
+checkFiles()
+{
+   local filename="$1"
+   local ext
+
+   for ext in `echo "$exts"`
+   do 
+      if [ ! -f "${filename}.${ext}" ]; then
+         return 1
+      fi 
+   done
+
+   return 0
+}
+
+calcDistribution()
+{
+   local option="$1"
+   local filename="$2"
+
+   ./${CCMD} $option $filename
+}
+
+makeVTK()
+{
+   local option="$1"
+   local fout="$2"
+   local name="$3"
+   local nat
+
+   ./${GFVTK} $option $fout
+   impVTKs $name
+
+   nat=`tail -n 1 ${name}.cur`
+   ./${GGVTK} ${name}.geom $nat
+}
+
+impVTKs()
+{
+   local name="$1"
+   local line
+   local file
+   local i
+
+   ((i = 0))
+   while read line
+   do
+      if ((i == 0)); then
+         for file in `ls ${name}*.vtk`
+	 do
+	    sed -e "s/px py pz/${line}/g" $file > ${name}.tmp
+	    mv ${name}.tmp $file
+	 done
+      else 
+	 for file in `ls ${name}*.vtk`
+	 do
+	    sed -e "s/ptot/${line}/g" $file > ${name}.tmp
+  	    mv ${name}.tmp $file
+	 done
+      fi 
+      ((i++))
+   done < ${name}.point
+}
+
+FError()
+{
+   cat <<EOF
+The files for calculation are insufficiency.
+The reuqired files for the calculation of current density: 
+	[  .mo: Molecular orbital file]
+	[ .vel: nuclear velocity file]
+	[.geom: nuclear geometry file]
+	[.dsmx: AO overlap derivative file]
+	[.cpmx: CPHF matrix file]
+EOF
+}
+
+# === Main ===
+cmd="$0"
+option="$1"
+curfile="$2"
+
+if [ "$curfile" == "" ]; then
+   usage $cmd
+   exit 1
+else 
+   fname=`basename $curfile .cur`
+   if   [ "$option" == '-d' ]; then 
+      fout="${fname}.d"
+   elif [ "$option" == '-f' ]; then 
+      fout="${fname}.f"
+   else 
+      usage $cmd
+      exit 1
+   fi 
+
+   checkFiles $fname
+   if [ "$?" != 0 ]; then
+      FError
+      exit 1
+   fi 
+   calcDistribution $option $fname > $fout
+   makeVTK  $option $fout $fname
+fi 
+
+exit 0
